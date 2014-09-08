@@ -1,0 +1,22 @@
+{
+   "background": {
+      "page": "background.html"
+   },
+   "browser_action": {
+      "default_icon": {
+         "19": "icon.png",
+         "38": "icon.png"
+      },
+      "default_title": "X"
+   },
+  "manifest_version": 2,
+
+  "name": "XScan",
+  "description": "X",
+  "version": "1.0",
+
+  "permissions": [
+    "webRequest",
+    "*://*/"
+  ]
+}
