@@ -1,15 +1,45 @@
-var viewTabId = 0;
-chrome.browserAction.onClicked.addListener(function() {
-    var n = chrome.extension.getURL("mainpage.html");
-    if (viewTabId != 0) try {
-        chrome.tabs.remove(viewTabId, function() {})
-    } catch (t) {
-        console.log(t)
-    }
-    chrome.tabs.create({
-        url: n
-    })
-});
+var check_ref = function (url_object, changes) {
+    //var poc = ["ti<lihrt", "ceqre>wre", "cferw\"gfw", "e3w'f4ff", "vrevr&ttrbg", "rfewvr\\brt"];
+    var poc = ["ti<lihrt", "ceqre>wre", "cferw\"gfw", "e3w'f4ff"];
+    if (changes.fragment === true) {
+        for(var i=0;i<poc.length;i++) {
+            var point = encodeURIComponent(poc[j]);
+            var t = JSON.parse(JSON.stringify(url_object));
+            t.fragment += point;
+            var url = object2url(t);
+            get_weak(url, poc[j]);
+        }
+    };
+    if (changes.params.length > 0) {
+        for(var j=0;j<poc.length;j++) {
+            for(var i=0;i<changes.params.length;i++) {
+                var point = encodeURIComponent(poc[j]);
+                var t = JSON.parse(JSON.stringify(url_object));
+                t.params[changes.params[i]] += point;
+                var url = object2url(t);
+                get_weak(url, poc[j]);
+            };
+        };
+    };
+}
+
+var get_weak = function(url, point) {
+    //console.log(url);
+    var xhr = new XMLHttpRequest();
+    xhr.onreadystatechange = function() {
+      if (xhr.readyState == 4) {
+        var resp = xhr.responseText;
+        console.log(point);
+        console.log(resp);
+        if (resp.indexOf(point) > -1) {
+            console.log("get");
+            add_result(url);
+        }
+      }
+    }            
+    xhr.open("GET", url, true);
+    xhr.send();
+}
 
 var isEmptyObject = function(v){
     if(Object.prototype.toString.apply(v) !== '[object Object]') return false;
@@ -57,16 +87,17 @@ var url2object = function(url) {
     var fragment_first = false; // true: fragment first; false: query first
     var queries_tag = url.indexOf("?");
     var fragment_tag = url.indexOf("#");
-    if (fragment_tag < queries_tag) {
-        fragment_first = true;
-        path = url.substring(0, fragment_tag);
+    if (fragment_tag === queries_tag) {
+        path = url;
+    } else if (fragment_tag < queries_tag) {
         if (fragment_tag != -1) {
+            path = url.substring(0, fragment_tag);
+            fragment_first = true;
             fragment = url.substring(fragment_tag+1, queries_tag);
             query = url.substring(queries_tag+1);
         } else {
-            if (queries_tag != -1) {
-                query = url.substring(queries_tag+1);
-            }
+            path = url.substring(0, queries_tag);
+            query = url.substring(queries_tag+1);
         }
     } else {
         if (queries_tag != -1) {
@@ -75,13 +106,8 @@ var url2object = function(url) {
             fragment = url.substring(fragment_tag+1);
         } else {
             path = url.substring(0, fragment_tag);
-            if (fragment_tag != -1) {
-                fragment = url.substring(fragment_tag+1);
-            }
+            fragment = url.substring(fragment_tag+1);
         }
-    }
-    if (fragment_tag === queries_tag) {
-        path = url;
     }
 
     params = query2params(query);
@@ -96,18 +122,18 @@ var url2object = function(url) {
 }
 
 var object2url = function(url_object) {
-    url = url_object.path
+    var url = url_object.path
     if (url_object.fragment_first === true) {
         if (url_object.fragment) {
             url += "#" + url_object.fragment;
         }
         if (!isEmptyObject(url_object.params)) {
-            console.log(url_object.params);
+            //console.log(url_object.params);
             url += "?" + params2query(url_object.params);
         }
     } else {
         if (!isEmptyObject(url_object.params)) {
-            console.log(url_object.params);
+            //console.log(url_object.params);
             url += "?" + params2query(url_object.params);
         }
         if (url_object.fragment) {
@@ -135,12 +161,21 @@ var mlog =  function(url) {
                 }
             }
 
+var add_result = function(url) {
+    if(!localStorage.weaks) 
+        localStorage.weaks = JSON.stringify({});
+    weaks = JSON.parse(localStorage.weaks);
+    weaks[url] = {};
+    localStorage.weaks = JSON.stringify(weaks);
+}
+
 var action = function(url) {
     if(!localStorage.urls) 
         localStorage.urls = JSON.stringify({});
     urls = JSON.parse(localStorage.urls);
-    console.log(url);
+    console.log("ourl:"+url);
     var url_object = url2object(url);
+    //console.log(url_object);
     var changes = {params:[], fragment:false};
     if (url_object.path in urls) {
         var old_object = urls[url_object.path];
@@ -166,7 +201,22 @@ var action = function(url) {
     }
     localStorage.urls = JSON.stringify(urls);
     console.log(changes);
+    check_ref(url_object, changes);
 }
+
+var viewTabId = 0;
+chrome.browserAction.onClicked.addListener(function() {
+    var n = chrome.extension.getURL("show.html");
+    if (viewTabId != 0) try {
+        chrome.tabs.remove(viewTabId, function() {})
+    } catch (t) {
+        console.log(t)
+    }
+    chrome.tabs.create({
+        url: n
+    })
+});
+
 
 chrome.webRequest.onHeadersReceived.addListener(function(n) {
     action(n.url);
