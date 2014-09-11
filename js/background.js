@@ -64,16 +64,18 @@ var check_quote = function(url_object, mark, type) {
       if (xhr.readyState == 4) {
         var resp = xhr.responseText;
         if (resp.indexOf(poc) > -1) {
-            reg1 = RegExp('<[^>]+"[^>]+'+poc);
-            reg2 = RegExp("<[^>]+'[^>]+"+poc);
-            console.log(reg1);
-            console.log(reg2);
+            reg1 = RegExp('<[^>]+"[^>\'"]+'+poc);
+            reg2 = RegExp("<[^>]+'[^>'\"]+"+poc);
+            //console.log(reg1);
+            //console.log(reg2);
             if (resp.search(reg1) > -1) {
                 console.log("1true");
+                console.log(resp.match(reg1));
                 check_char(url_object, mark, "params", "\"");
             }
             if (resp.search(reg2) > -1) {
                 console.log("2true");
+                console.log(resp.match(reg2));
                 check_char(url_object, mark, "params", "'");
             }
         }
@@ -279,7 +281,20 @@ var action = function(n) {
     }
     localStorage.urls = JSON.stringify(urls);
     console.log(changes);
-    check_ref(url_object, changes);
+
+    if (["main_frame", "sub_frame", "object", "xmlhttprequest", "other"].join("").indexOf(n.type) > -1) {
+        headers = n.responseHeaders;
+        for (var i=0;i<headers.length;i++) {
+            if (headers[i].name === "Content-Type") {
+                if (headers[i].value.indexOf("json") === -1 && headers[i].value.indexOf("javascript") === -1){
+                    check_ref(url_object, changes);
+                } else {
+                    console.log("json or javascript");
+                }
+            }
+        }
+    }
+
 }
 
 var viewTabId = 0;
@@ -298,19 +313,8 @@ chrome.browserAction.onClicked.addListener(function() {
 
 chrome.webRequest.onHeadersReceived.addListener(function(n) {
     console.log(n.type);
-    if (["main_frame", "sub_frame", "object", "xmlhttprequest", "other"].join("").indexOf(n.type) > -1) {
-        headers = n.responseHeaders;
-        for (var i=0;i<headers.length;i++) {
-            if (headers[i].name === "Content-Type") {
-                if (headers[i].value.indexOf("json") === -1 && headers[i].value.indexOf("javascript") === -1){
-                    //console.log(headers[i].value);
-                    action(n);
-                } else {
-                    console.log("json or javascript");
-                }
-            }
-        }
-    }
+    action(n);
+
 }, {
     urls: ["<all_urls>"]
 }, ["responseHeaders"]);
