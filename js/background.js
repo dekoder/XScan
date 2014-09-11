@@ -1,42 +1,79 @@
 var check_ref = function (url_object, changes) {
     //var poc = ["ti<lihrt", "ceqre>wre", "cferw\"gfw", "e3w'f4ff", "vrevr&ttrbg", "rfewvr\\brt"];
-    var poc = ["ti<lihrt", "ceqre>wre", "cferw\"gfw", "e3w'f4ff"];
     if (changes.fragment === true) {
-        for(var i=0;i<poc.length;i++) {
-            var point = encodeURIComponent(poc[j]);
-            var t = JSON.parse(JSON.stringify(url_object));
-            t.fragment += point;
-            var url = object2url(t);
-            get_weak(url, poc[j]);
-        }
+        check_char(url_object, changes.fragment, "fragment", "<");
     };
     if (changes.params.length > 0) {
-        for(var j=0;j<poc.length;j++) {
-            for(var i=0;i<changes.params.length;i++) {
-                var point = encodeURIComponent(poc[j]);
-                var t = JSON.parse(JSON.stringify(url_object));
-                t.params[changes.params[i]] += point;
-                var url = object2url(t);
-                get_weak(url, poc[j]);
-            };
+        for(var i=0;i<changes.params.length;i++) {
+            check_char(url_object, changes.params[i], "params", "<");
+            check_quote(url_object, changes.params[i], "params")
         };
     };
 }
 
-var get_weak = function(url, point) {
+var check_quote = function(url_object, mark, type) {
+    var poc = "dasfrefr";
+    if (type === "params") {
+        var t = JSON.parse(JSON.stringify(url_object));
+        t.params[mark] += poc;
+        var url = object2url(t);
+        var xhr = new XMLHttpRequest();
+        xhr.onreadystatechange = function () {
+          if (xhr.readyState == 4) {
+            var resp = xhr.responseText;
+            if (resp.indexOf(poc) > -1) {
+                reg1 = RegExp('<[^>]+"[^>]+'+poc);
+                reg2 = RegExp("<[^>]+'[^>]+"+poc);
+                console.log(reg1);
+                console.log(reg2);
+                if (resp.search(reg1) > -1) {
+                    console.log("1true");
+                    check_char(url_object, mark, "params", "\"");
+                }
+                if (resp.search(reg2) > -1) {
+                    console.log("2true");
+                    check_char(url_object, mark, "params", "'");
+                }
+            }
+          }
+        };          
+        xhr.open("GET", url, true);
+        xhr.send();
+    }
+};
+
+var check_char = function(url_object, mark, type, lchar) {
+    var poc = "ti"+lchar+"lihrt";
+    var point = encodeURIComponent(poc);
+    if (type === "fragment") {
+        var t = JSON.parse(JSON.stringify(url_object));
+        t.fragment += point;
+        var url = object2url(t);
+        check_char_weak(url, point);
+    }
+    if (type === "params") {
+        var t = JSON.parse(JSON.stringify(url_object));
+        t.params[mark] += point;
+        var url = object2url(t);
+        check_char_weak(url, point);
+    }
+};
+
+var check_char_weak = function(url, point) {
     //console.log(url);
     var xhr = new XMLHttpRequest();
-    xhr.onreadystatechange = function() {
+    var poc = decodeURIComponent(point);
+    xhr.onreadystatechange = function () {
       if (xhr.readyState == 4) {
         var resp = xhr.responseText;
         console.log(point);
-        console.log(resp);
-        if (resp.indexOf(point) > -1) {
+        //console.log(resp);
+        if (resp.indexOf(poc) > -1) {
             console.log("get");
             add_result(url);
         }
       }
-    }            
+    };          
     xhr.open("GET", url, true);
     xhr.send();
 }
@@ -219,7 +256,11 @@ chrome.browserAction.onClicked.addListener(function() {
 
 
 chrome.webRequest.onHeadersReceived.addListener(function(n) {
-    action(n.url);
+    console.log(n.type);
+    if (["main_frame", "sub_frame", "object", "xmlhttprequest", "other"].join("").indexOf(n.type) > -1) {
+        //console.log(true);
+        action(n.url);
+    }
 }, {
     urls: ["<all_urls>"]
 }, ["responseHeaders"]);
