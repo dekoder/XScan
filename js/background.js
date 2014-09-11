@@ -6,57 +6,95 @@ var check_ref = function (url_object, changes) {
     if (changes.params.length > 0) {
         for(var i=0;i<changes.params.length;i++) {
             check_char(url_object, changes.params[i], "params", "<");
-            check_quote(url_object, changes.params[i], "params")
+            check_quote(url_object, changes.params[i], "params");
         };
     };
 }
 
-var check_quote = function(url_object, mark, type) {
-    var poc = "dasfrefr";
-    if (type === "params") {
-        var t = JSON.parse(JSON.stringify(url_object));
-        t.params[mark] += poc;
-        var url = object2url(t);
+var check_httponly = function(n) {
+    var url = n.url;
+    cookies = chrome.cookies.getAll({url:url}, function(cookies){
+        var ho_cookies = {};
+        for (var i = cookies.length - 1; i >= 0; i--) {
+            if (cookies[i].httpOnly === true) {
+                ho_cookies[cookies[i].name] = cookies[i].value;
+            }
+        };
         var xhr = new XMLHttpRequest();
         xhr.onreadystatechange = function () {
           if (xhr.readyState == 4) {
             var resp = xhr.responseText;
-            if (resp.indexOf(poc) > -1) {
-                reg1 = RegExp('<[^>]+"[^>]+'+poc);
-                reg2 = RegExp("<[^>]+'[^>]+"+poc);
-                console.log(reg1);
-                console.log(reg2);
-                if (resp.search(reg1) > -1) {
-                    console.log("1true");
-                    check_char(url_object, mark, "params", "\"");
-                }
-                if (resp.search(reg2) > -1) {
-                    console.log("2true");
-                    check_char(url_object, mark, "params", "'");
+            var leaks = [];
+            var unleaks = []
+            for (name in ho_cookies) {
+                if (resp.indexOf(ho_cookies[name]) > -1) {
+                    leaks.push(name);
+                } else {
+                    unleaks.push(name);
                 }
             }
+            if (leaks.length != 0) {
+                summary = leaks.join(",") + "||" + unleaks.join(",");
+                obj = {type: "httpOnly", summary:summary};
+                add_result(url, obj);
+            }
           }
-        };          
+        };
         xhr.open("GET", url, true);
         xhr.send();
+    });
+}
+
+//对于新url的检测
+var check_newurl = function(n) {
+    check_httponly(n);
+}
+
+var check_quote = function(url_object, mark, type) {
+    var poc = "dasfrefr";
+    var t = JSON.parse(JSON.stringify(url_object));
+    if (type === "params") {
+        t.params[mark] += poc;
+    } else if (type === "fragment") {
+        t.fragment += point;
     }
+    var url = object2url(t);
+    var xhr = new XMLHttpRequest();
+    xhr.onreadystatechange = function () {
+      if (xhr.readyState == 4) {
+        var resp = xhr.responseText;
+        if (resp.indexOf(poc) > -1) {
+            reg1 = RegExp('<[^>]+"[^>]+'+poc);
+            reg2 = RegExp("<[^>]+'[^>]+"+poc);
+            console.log(reg1);
+            console.log(reg2);
+            if (resp.search(reg1) > -1) {
+                console.log("1true");
+                check_char(url_object, mark, "params", "\"");
+            }
+            if (resp.search(reg2) > -1) {
+                console.log("2true");
+                check_char(url_object, mark, "params", "'");
+            }
+        }
+      }
+    };          
+    xhr.open("GET", url, true);
+    xhr.send();
 };
 
 var check_char = function(url_object, mark, type, lchar) {
     var poc = "ti"+lchar+"lihrt";
     var point = encodeURIComponent(poc);
+    var t = JSON.parse(JSON.stringify(url_object));
     if (type === "fragment") {
-        var t = JSON.parse(JSON.stringify(url_object));
         t.fragment += point;
-        var url = object2url(t);
-        check_char_weak(url, point);
     }
     if (type === "params") {
-        var t = JSON.parse(JSON.stringify(url_object));
         t.params[mark] += point;
-        var url = object2url(t);
-        check_char_weak(url, point);
     }
+    var url = object2url(t);
+    check_char_weak(url, point);
 };
 
 var check_char_weak = function(url, point) {
@@ -70,7 +108,8 @@ var check_char_weak = function(url, point) {
         //console.log(resp);
         if (resp.indexOf(poc) > -1) {
             console.log("get");
-            add_result(url);
+            var obj = {type: "rXSS"};
+            add_result(url, obj);
         }
       }
     };          
@@ -198,15 +237,16 @@ var mlog =  function(url) {
                 }
             }
 
-var add_result = function(url) {
+var add_result = function(url, object) {
     if(!localStorage.weaks) 
         localStorage.weaks = JSON.stringify({});
     weaks = JSON.parse(localStorage.weaks);
-    weaks[url] = {};
+    weaks[url] = object;
     localStorage.weaks = JSON.stringify(weaks);
 }
 
-var action = function(url) {
+var action = function(n) {
+    var url = n.url;
     if(!localStorage.urls) 
         localStorage.urls = JSON.stringify({});
     urls = JSON.parse(localStorage.urls);
@@ -235,6 +275,7 @@ var action = function(url) {
         if (url_object.fragment != ""){
             changes.fragment = true;
         }
+        check_newurl(n);
     }
     localStorage.urls = JSON.stringify(urls);
     console.log(changes);
@@ -258,9 +299,31 @@ chrome.browserAction.onClicked.addListener(function() {
 chrome.webRequest.onHeadersReceived.addListener(function(n) {
     console.log(n.type);
     if (["main_frame", "sub_frame", "object", "xmlhttprequest", "other"].join("").indexOf(n.type) > -1) {
-        //console.log(true);
-        action(n.url);
+        headers = n.responseHeaders;
+        for (var i=0;i<headers.length;i++) {
+            if (headers[i].name === "Content-Type") {
+                if (headers[i].value.indexOf("json") === -1 && headers[i].value.indexOf("javascript") === -1){
+                    //console.log(headers[i].value);
+                    action(n);
+                } else {
+                    console.log("json or javascript");
+                }
+            }
+        }
     }
 }, {
     urls: ["<all_urls>"]
 }, ["responseHeaders"]);
+
+/*
+chrome.webRequest.onSendHeaders.addListener(function(n){
+    var url = n.url;
+    if(!localStorage.urls) 
+        localStorage.urls = JSON.stringify({});
+    urls = JSON.parse(localStorage.urls);
+    var url_object = url2object(url);
+    if (!(url_object.path in urls)) {
+        check_newurl(n);
+    }
+},{urls: ["<all_urls>"]},["requestHeaders"]);
+*/
