@@ -11,43 +11,11 @@ var check_ref = function (url_object, changes) {
     };
 }
 
-var check_httponly = function(n) {
-    var url = n.url;
-    cookies = chrome.cookies.getAll({url:url}, function(cookies){
-        var ho_cookies = {};
-        for (var i = cookies.length - 1; i >= 0; i--) {
-            if (cookies[i].httpOnly === true) {
-                ho_cookies[cookies[i].name] = cookies[i].value;
-            }
-        };
-        var xhr = new XMLHttpRequest();
-        xhr.onreadystatechange = function () {
-          if (xhr.readyState == 4) {
-            var resp = xhr.responseText;
-            var leaks = [];
-            var unleaks = []
-            for (name in ho_cookies) {
-                if (resp.indexOf(ho_cookies[name]) > -1) {
-                    leaks.push(name);
-                } else {
-                    unleaks.push(name);
-                }
-            }
-            if (leaks.length != 0) {
-                summary = leaks.join(",") + "||" + unleaks.join(",");
-                obj = {type: "httpOnly", summary:summary};
-                add_result(url, obj);
-            }
-          }
-        };
-        xhr.open("GET", url, true);
-        xhr.send();
-    });
-}
 
 //对于新url的检测
 var check_newurl = function(n) {
-    check_httponly(n);
+    //check_httponly(n);
+    //check_jsonp(n);
 }
 
 var check_quote = function(url_object, mark, type) {
@@ -80,7 +48,7 @@ var check_quote = function(url_object, mark, type) {
             }
         }
       }
-    };          
+    };
     xhr.open("GET", url, true);
     xhr.send();
 };
@@ -114,7 +82,7 @@ var check_char_weak = function(url, point) {
             add_result(url, obj);
         }
       }
-    };          
+    };
     xhr.open("GET", url, true);
     xhr.send();
 }
@@ -240,7 +208,7 @@ var mlog =  function(url) {
             }
 
 var add_result = function(url, object) {
-    if(!localStorage.weaks) 
+    if(!localStorage.weaks)
         localStorage.weaks = JSON.stringify({});
     weaks = JSON.parse(localStorage.weaks);
     weaks[url] = object;
@@ -249,7 +217,7 @@ var add_result = function(url, object) {
 
 var action = function(n) {
     var url = n.url;
-    if(!localStorage.urls) 
+    if(!localStorage.urls)
         localStorage.urls = JSON.stringify({});
     urls = JSON.parse(localStorage.urls);
     console.log("ourl:"+url);
@@ -319,15 +287,5 @@ chrome.webRequest.onHeadersReceived.addListener(function(n) {
     urls: ["<all_urls>"]
 }, ["responseHeaders"]);
 
-/*
-chrome.webRequest.onSendHeaders.addListener(function(n){
-    var url = n.url;
-    if(!localStorage.urls) 
-        localStorage.urls = JSON.stringify({});
-    urls = JSON.parse(localStorage.urls);
-    var url_object = url2object(url);
-    if (!(url_object.path in urls)) {
-        check_newurl(n);
-    }
-},{urls: ["<all_urls>"]},["requestHeaders"]);
-*/
+
+
