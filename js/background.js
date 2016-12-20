@@ -215,8 +215,17 @@ var add_result = function(url, object) {
     localStorage.weaks = JSON.stringify(weaks);
 }
 
+black_domains = [];
+
 var action = function(n) {
     var url = n.url;
+
+
+    for (var i=0; i<black_domains.length; i++) {
+        if (url.indexOf(black_domains[i]) > -1)
+            return;
+    }
+
     if(!localStorage.urls)
         localStorage.urls = JSON.stringify({});
     urls = JSON.parse(localStorage.urls);
@@ -287,5 +296,15 @@ chrome.webRequest.onHeadersReceived.addListener(function(n) {
     urls: ["<all_urls>"]
 }, ["responseHeaders"]);
 
+chrome.runtime.onMessage.addListener(
+    function(request, sender, sendResponse) {
 
+            for (var i=0; i<black_domains.length; i++) {
+                if (sender.tab.url.indexOf(black_domains[i]) > -1)
+                    return;
+            }
+
+            var obj = {type: "dXSS", summary: request.c};
+            add_result(sender.tab.url, obj);
+    });
 
